@@ -525,6 +525,44 @@ function Voting:StartVote(items, timeout)
             HooligansLoot:Debug("Created vote: " .. voteId)
         end
 
+        -- Capture ML's own gear for the votes
+        local GearComparison = HooligansLoot:GetModule("GearComparison", true)
+        if GearComparison then
+            local mlName = UnitName("player")
+            local gearData = {}
+            local processedSlots = {}
+
+            for _, item in ipairs(items) do
+                local slots = GearComparison:GetSlotsForItem(item.link)
+                if slots then
+                    for _, slotId in ipairs(slots) do
+                        if not processedSlots[slotId] then
+                            processedSlots[slotId] = true
+                            local itemLink = GetInventoryItemLink("player", slotId)
+                            if itemLink then
+                                local ilvl = GearComparison:GetItemLevel(itemLink)
+                                gearData[slotId] = {
+                                    l = itemLink,
+                                    i = ilvl,
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+
+            -- Store ML's gear in all votes
+            if next(gearData) then
+                for voteId, vote in pairs(votes) do
+                    if not vote.playerGear then
+                        vote.playerGear = {}
+                    end
+                    vote.playerGear[mlName] = gearData
+                end
+                HooligansLoot:Debug("Stored ML's own gear for " .. #items .. " votes")
+            end
+        end
+
         -- Build MINIMAL vote data for broadcast (reduces message size for faster delivery)
         -- Send only item link - raiders reconstruct full item data locally
         local voteData = {}

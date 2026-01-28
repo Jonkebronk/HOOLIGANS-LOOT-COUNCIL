@@ -66,6 +66,9 @@ function Export:GetPlatformExportData(sessionId)
         return nil, "No session found"
     end
 
+    -- Get GearComparison for slot mapping
+    local GearComparison = HooligansLoot:GetModule("GearComparison", true)
+
     -- Format for HOOLIGANS platform /api/loot/import-rc endpoint
     local exportData = {
         teamId = "", -- User fills this in on platform or we could make it configurable
@@ -84,6 +87,17 @@ function Export:GetPlatformExportData(sessionId)
             ilvl = itemLevel or 0
         end
 
+        -- Get relevant slots for this item
+        local relevantSlots = {}
+        if GearComparison and item.link then
+            local slots = GearComparison:GetSlotsForItem(item.link)
+            if slots then
+                for _, slotId in ipairs(slots) do
+                    relevantSlots[slotId] = true
+                end
+            end
+        end
+
         local itemExport = {
             itemName = item.name or "Unknown",
             wowheadId = item.id,
@@ -94,6 +108,42 @@ function Export:GetPlatformExportData(sessionId)
             timestamp = item.timestamp,
             responses = {},
         }
+
+        -- Helper to build currentGear filtered by relevant slots
+        local function buildCurrentGear(playerGear)
+            if not playerGear then return nil end
+            local gearList = {}
+            for slotId, gearInfo in pairs(playerGear) do
+                local numSlot = tonumber(slotId)
+                -- Only include slots relevant to this item
+                if numSlot and relevantSlots[numSlot] and gearInfo and gearInfo.l then
+                    local itemName = gearInfo.l:match("%[(.-)%]") or "Unknown"
+                    table.insert(gearList, {
+                        slot = numSlot,
+                        item = itemName,
+                        link = gearInfo.l,
+                        ilvl = gearInfo.i,
+                    })
+                end
+            end
+            return #gearList > 0 and gearList or nil
+        end
+
+        -- Helper to find player gear (handles realm name differences)
+        local function findPlayerGear(playerGear, playerName)
+            if not playerGear then return nil end
+            -- Try exact match first
+            if playerGear[playerName] then return playerGear[playerName] end
+            -- Try without realm suffix
+            local shortName = playerName:match("([^%-]+)") or playerName
+            for gearPlayer, data in pairs(playerGear) do
+                local shortGearPlayer = gearPlayer:match("([^%-]+)") or gearPlayer
+                if shortName == shortGearPlayer then
+                    return data
+                end
+            end
+            return nil
+        end
 
         -- Find vote responses for this item
         for voteId, vote in pairs(activeVotes) do
@@ -106,20 +156,10 @@ function Export:GetPlatformExportData(sessionId)
                         note = response.note,
                     }
                     -- Add player's equipped gear if available
-                    if vote.playerGear and vote.playerGear[playerName] then
-                        responseData.currentGear = {}
-                        for slotId, gearInfo in pairs(vote.playerGear[playerName]) do
-                            if gearInfo.l then
-                                -- Extract item name from link
-                                local itemName = gearInfo.l:match("%[(.-)%]") or "Unknown"
-                                table.insert(responseData.currentGear, {
-                                    slot = slotId,
-                                    item = itemName,
-                                    link = gearInfo.l,
-                                    ilvl = gearInfo.i,
-                                })
-                            end
-                        end
+                    local gearData = findPlayerGear(vote.playerGear, playerName)
+                    local currentGear = buildCurrentGear(gearData)
+                    if currentGear then
+                        responseData.currentGear = currentGear
                     end
                     table.insert(itemExport.responses, responseData)
                 end
@@ -139,19 +179,10 @@ function Export:GetPlatformExportData(sessionId)
                             note = response.note,
                         }
                         -- Add player's equipped gear if available
-                        if vote.playerGear and vote.playerGear[playerName] then
-                            responseData.currentGear = {}
-                            for slotId, gearInfo in pairs(vote.playerGear[playerName]) do
-                                if gearInfo.l then
-                                    local itemName = gearInfo.l:match("%[(.-)%]") or "Unknown"
-                                    table.insert(responseData.currentGear, {
-                                        slot = slotId,
-                                        item = itemName,
-                                        link = gearInfo.l,
-                                        ilvl = gearInfo.i,
-                                    })
-                                end
-                            end
+                        local gearData = findPlayerGear(vote.playerGear, playerName)
+                        local currentGear = buildCurrentGear(gearData)
+                        if currentGear then
+                            responseData.currentGear = currentGear
                         end
                         table.insert(itemExport.responses, responseData)
                     end
