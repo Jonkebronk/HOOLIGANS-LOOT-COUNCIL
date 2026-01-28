@@ -1,0 +1,34 @@
+## Interface: 11503, 11504, 20505
+## Title: |cff5865F2HOOLIGANS|r Loot Council
+## Notes: Loot Council management for HOOLIGANS guild
+## Author: Johnny / HOOLIGANS
+## Version: 1.2.0
+## SavedVariables: HooligansLootDB
+## X-Category: Loot
+
+# Libraries
+embeds.xml
+
+# Core
+Core.lua
+Utils.lua
+
+# Modules
+Modules\LootTracker.lua
+Modules\SessionManager.lua
+Modules\Export.lua
+Modules\Import.lua
+Modules\TradeManager.lua
+Modules\Announcer.lua
+Modules\Comm.lua
+Modules\Voting.lua
+Modules\GearComparison.lua
+
+# UI
+UI\MainFrame.lua
+UI\RaidPopup.lua
+UI\SettingsFrame.lua
+UI\HistoryFrame.lua
+UI\LootFrame.lua
+UI\SessionSetupFrame.lua
+UI\AwardFrame.lua
