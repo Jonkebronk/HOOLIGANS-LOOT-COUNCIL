@@ -2,7 +2,7 @@
 ## Title: |cff5865F2HOOLIGANS|r Loot Council
 ## Notes: Loot Council management for HOOLIGANS guild
 ## Author: Johnny / HOOLIGANS
-## Version: 1.2.1
+## Version: 1.2.2
 ## SavedVariables: HooligansLootDB
 ## X-Category: Loot
 
