@@ -261,20 +261,21 @@ function LootFrame:CreateItemRow(parent, index)
     row.gearIcons = {}
     for i = 1, 2 do
         local gearIcon = CreateFrame("Button", nil, gearFrame)
-        gearIcon:SetSize(22, 22)
-        gearIcon:SetPoint("LEFT", gearLabel, "RIGHT", 3 + ((i - 1) * 24), 0)
+        gearIcon:SetSize(20, 20)
+        gearIcon:SetPoint("LEFT", gearLabel, "RIGHT", 2 + ((i - 1) * 22), 0)
 
+        -- Icon texture
         local iconTexture = gearIcon:CreateTexture(nil, "ARTWORK")
         iconTexture:SetAllPoints()
         iconTexture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         gearIcon.icon = iconTexture
 
-        -- Border
-        local border = gearIcon:CreateTexture(nil, "OVERLAY")
-        border:SetSize(24, 24)
-        border:SetPoint("CENTER")
-        border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-        gearIcon.border = border
+        -- Simple dark border (1px)
+        local borderBg = gearIcon:CreateTexture(nil, "BACKGROUND")
+        borderBg:SetPoint("TOPLEFT", -1, 1)
+        borderBg:SetPoint("BOTTOMRIGHT", 1, -1)
+        borderBg:SetColorTexture(0, 0, 0, 0.8)
+        gearIcon.borderBg = borderBg
 
         -- Tooltip on hover
         gearIcon:SetScript("OnEnter", function(self)

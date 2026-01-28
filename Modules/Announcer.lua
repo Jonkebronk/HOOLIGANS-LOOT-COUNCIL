@@ -13,8 +13,13 @@ function Announcer:OnEnable()
 end
 
 -- Called when an award is set (item assigned to player)
--- Always auto-announces with raid warning format
+-- Only raid leader can announce to raid
 function Announcer:OnAwardSet(event, session, itemGUID, playerName)
+    -- Only raid leader should announce
+    if IsInRaid() and not UnitIsGroupLeader("player") then
+        return
+    end
+
     -- Find the item and award
     local item = nil
     for _, sessionItem in ipairs(session.items) do
@@ -97,11 +102,16 @@ function Announcer:AnnounceItem(item, winner, channel)
 end
 
 -- Send a raid warning when an item is awarded
+-- Only raid leader can announce
 function Announcer:AnnounceAwardRaidWarning(item, winner, playerClass)
     if not item or not winner then return end
 
-    -- Only send raid warning if we have assist/lead
+    -- Only raid leader can announce to raid
     local inRaid = IsInRaid()
+    if inRaid and not UnitIsGroupLeader("player") then
+        return
+    end
+
     local isAssist = UnitIsGroupAssistant("player") or UnitIsGroupLeader("player")
 
     -- Plain text for chat (no color codes in raid warning channel)
@@ -140,6 +150,12 @@ function Announcer:AnnounceAward(item, winner, useRaidWarning)
 end
 
 function Announcer:AnnounceAwards(sessionId)
+    -- Only raid leader can announce to raid
+    if IsInRaid() and not UnitIsGroupLeader("player") then
+        HooligansLoot:Print("Only the Raid Leader can announce to raid.")
+        return 0
+    end
+
     local SessionManager = HooligansLoot:GetModule("SessionManager")
     local session = sessionId and SessionManager:GetSession(sessionId) or SessionManager:GetCurrentSession()
 
@@ -201,6 +217,12 @@ end
 
 -- Announce all pending awards with raid warnings (used by "Award Announce" button)
 function Announcer:AnnounceAwardsWithRaidWarning(sessionId)
+    -- Only raid leader can announce to raid
+    if IsInRaid() and not UnitIsGroupLeader("player") then
+        HooligansLoot:Print("Only the Raid Leader can announce to raid.")
+        return 0
+    end
+
     local SessionManager = HooligansLoot:GetModule("SessionManager")
     local session = sessionId and SessionManager:GetSession(sessionId) or SessionManager:GetCurrentSession()
 
