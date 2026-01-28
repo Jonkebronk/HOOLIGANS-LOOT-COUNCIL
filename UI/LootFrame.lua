@@ -357,6 +357,12 @@ function LootFrame:UpdateItemRow(row, vote)
         return
     end
 
+    -- Clear pending state if this row is now showing a different vote
+    if row.voteId and row.voteId ~= vote.voteId then
+        row.selectedResponse = nil
+        row.pendingComment = nil
+    end
+
     local item = vote.item
     local Voting = HooligansLoot:GetModule("Voting")
 
