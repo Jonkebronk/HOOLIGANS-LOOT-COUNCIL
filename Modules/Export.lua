@@ -101,6 +101,7 @@ function Export:GetPlatformExportData(sessionId)
         local itemExport = {
             itemName = item.name or "Unknown",
             wowheadId = item.id,
+            link = item.link,  -- Full WoW item link for Wowhead tooltip parsing
             quality = item.quality or 4,
             ilvl = ilvl,
             -- Extra fields for context (platform can ignore if not needed)
