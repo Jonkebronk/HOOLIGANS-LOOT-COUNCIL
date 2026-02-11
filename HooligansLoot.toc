@@ -18,7 +18,6 @@ Modules\LootTracker.lua
 Modules\SessionManager.lua
 Modules\Export.lua
 Modules\Import.lua
-Modules\GearExport.lua
 Modules\TradeManager.lua
 Modules\Announcer.lua
 

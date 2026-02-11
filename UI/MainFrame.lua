@@ -281,15 +281,6 @@ function MainFrame:CreateFrame()
     end)
     frame.refreshBtn = refreshBtn
 
-    local gearExportBtn = CreateFrame("Button", nil, buttonBar, "UIPanelButtonTemplate")
-    gearExportBtn:SetSize(50, btnHeight)
-    gearExportBtn:SetPoint("LEFT", refreshBtn, "RIGHT", btnSpacing, 0)
-    gearExportBtn:SetText("Gear")
-    gearExportBtn:SetScript("OnClick", function()
-        HooligansLoot:ShowGearExportDialog()
-    end)
-    frame.gearExportBtn = gearExportBtn
-
     -- Right side buttons
     local endSessionBtn = CreateFrame("Button", nil, buttonBar, "UIPanelButtonTemplate")
     endSessionBtn:SetSize(50, btnHeight)
