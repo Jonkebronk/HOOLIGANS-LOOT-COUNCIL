@@ -1,5 +1,5 @@
 -- Modules/GearExport.lua
--- Export player's equipped gear in Sixty Upgrades format
+-- Export player's equipped gear in Gearcheck format (minimal JSON)
 
 local ADDON_NAME, NS = ...
 local HooligansLoot = NS.addon
@@ -7,361 +7,8 @@ local Utils = NS.Utils
 
 local GearExport = HooligansLoot:NewModule("GearExport")
 
--- Equipment slots: WoW slot ID -> Sixty Upgrades slot name (uppercase with underscores)
-local SLOT_INFO = {
-    { wowSlot = 1,  name = "HEAD" },
-    { wowSlot = 2,  name = "NECK" },
-    { wowSlot = 3,  name = "SHOULDERS" },
-    { wowSlot = 15, name = "BACK" },
-    { wowSlot = 5,  name = "CHEST" },
-    { wowSlot = 9,  name = "WRISTS" },
-    { wowSlot = 10, name = "HANDS" },
-    { wowSlot = 6,  name = "WAIST" },
-    { wowSlot = 7,  name = "LEGS" },
-    { wowSlot = 8,  name = "FEET" },
-    { wowSlot = 11, name = "FINGER_1" },
-    { wowSlot = 12, name = "FINGER_2" },
-    { wowSlot = 13, name = "TRINKET_1" },
-    { wowSlot = 14, name = "TRINKET_2" },
-    { wowSlot = 16, name = "MAIN_HAND" },
-    { wowSlot = 17, name = "OFF_HAND" },
-    { wowSlot = 18, name = "RANGED" },
-}
-
--- Race name mapping (localized -> Sixty Upgrades format)
-local RACE_MAP = {
-    ["Human"] = "HUMAN",
-    ["Dwarf"] = "DWARF",
-    ["Night Elf"] = "NIGHT_ELF",
-    ["Gnome"] = "GNOME",
-    ["Draenei"] = "DRAENEI",
-    ["Orc"] = "ORC",
-    ["Undead"] = "UNDEAD",
-    ["Tauren"] = "TAUREN",
-    ["Troll"] = "TROLL",
-    ["Blood Elf"] = "BLOOD_ELF",
-}
-
--- Tooltip scanner for extracting enchant names (fallback)
-local scanTooltip = CreateFrame("GameTooltip", "HooligansGearExportScanTooltip", nil, "GameTooltipTemplate")
-scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
-
--- Enchant ID to full name mapping
--- Complete list for Classic Era / Anniversary + TBC
-local ENCHANT_NAMES = {
-    -- =============================================
-    -- WEAPON ENCHANTS (Classic)
-    -- =============================================
-    [241] = "Enchant Weapon - Minor Beastslayer",
-    [249] = "Enchant Weapon - Minor Intellect",
-    [255] = "Enchant Weapon - Minor Impact",
-    [723] = "Enchant Weapon - Intellect",
-    [803] = "Enchant Weapon - Fiery Weapon",
-    [805] = "Enchant Weapon - Icy Chill",
-    [811] = "Enchant Weapon - Unholy Weapon",
-    [853] = "Enchant Weapon - Demonslaying",
-    [854] = "Enchant Weapon - Elemental Slayer",
-    [912] = "Enchant Weapon - Lesser Striking",
-    [943] = "Enchant Weapon - Striking",
-    [963] = "Enchant Weapon - Greater Striking",
-    [1894] = "Enchant Weapon - Icy Chill",
-    [1895] = "Enchant Weapon - Lifestealing",
-    [1896] = "Enchant Weapon - Lifestealing",
-    [1897] = "Enchant Weapon - Unholy Weapon",
-    [1898] = "Enchant Weapon - Spellpower",
-    [1899] = "Enchant Weapon - Healing Power",
-    [1900] = "Enchant Weapon - Crusader",
-    [1903] = "Enchant Weapon - Spirit",
-    [1904] = "Enchant Weapon - Agility",
-    [2443] = "Enchant Weapon - Strength",
-    [2504] = "Enchant Weapon - Greater Striking",
-    [2505] = "Enchant Weapon - Superior Striking",
-    -- TBC Weapon enchants
-    [2563] = "Enchant Weapon - Mighty Intellect",
-    [2564] = "Enchant Weapon - Mighty Spirit",
-    [2567] = "Enchant Weapon - Mighty Spellpower",
-    [2568] = "Enchant Weapon - Agility",
-    [2666] = "Enchant Weapon - Major Striking",
-    [2667] = "Enchant Weapon - Savagery",
-    [2668] = "Enchant Weapon - Potency",
-    [2669] = "Enchant Weapon - Major Spellpower",
-    [2670] = "Enchant Weapon - Major Intellect",
-    [2671] = "Enchant Weapon - Sunfire",
-    [2672] = "Enchant Weapon - Soulfrost",
-    [2673] = "Enchant Weapon - Mongoose",
-    [2674] = "Enchant Weapon - Spellsurge",
-    [2675] = "Enchant Weapon - Battlemaster",
-    [3222] = "Enchant Weapon - Greater Agility",
-    [3225] = "Enchant Weapon - Executioner",
-
-    -- =============================================
-    -- 2H WEAPON ENCHANTS
-    -- =============================================
-    [1901] = "Enchant 2H Weapon - Agility",
-    [1902] = "Enchant 2H Weapon - Superior Impact",
-    [1903] = "Enchant 2H Weapon - Major Spirit",
-    [1904] = "Enchant 2H Weapon - Major Intellect",
-    [2523] = "Enchant 2H Weapon - Greater Impact",
-    [2646] = "Enchant 2H Weapon - Major Agility",
-    [2676] = "Enchant 2H Weapon - Savagery",
-
-    -- =============================================
-    -- HEAD/LEG ENCHANTS (Classic - ZG/Librams)
-    -- =============================================
-    [1483] = "Arcanum of Focus",
-    [1503] = "Lesser Arcanum of Constitution",
-    [1504] = "Lesser Arcanum of Resilience",
-    [1505] = "Lesser Arcanum of Rumination",
-    [1506] = "Lesser Arcanum of Voracity",
-    [1507] = "Arcanum of Rapidity",
-    [1508] = "Arcanum of Focus",
-    [1509] = "Arcanum of Protection",
-    [1510] = "Arcanum of Voracity",
-    [2543] = "Arcanum of Voracity",
-    [2544] = "Arcanum of Voracity",
-    [2545] = "Arcanum of Voracity",
-    [2583] = "Arcanum of Voracity",
-    -- ZG Class Enchants
-    [2584] = "Presence of Might",
-    [2585] = "Syncretist's Sigil",
-    [2586] = "Death's Embrace",
-    [2587] = "Falcon's Call",
-    [2588] = "Vodouisant's Vigilant Embrace",
-    [2589] = "Presence of Sight",
-    [2590] = "Hoodoo Hex",
-    [2591] = "Animist's Caress",
-    -- TBC Head Glyphs
-    [2999] = "Glyph of the Defender",
-    [3001] = "Glyph of Renewal",
-    [3002] = "Glyph of Power",
-    [3003] = "Glyph of Ferocity",
-    [3004] = "Glyph of the Outcast",
-    [3005] = "Glyph of Fire Warding",
-    [3006] = "Glyph of the Gladiator",
-    [3007] = "Glyph of Chromatic Warding",
-    [3008] = "Glyph of Shadow Warding",
-    [3009] = "Glyph of Nature Warding",
-
-    -- =============================================
-    -- SHOULDER ENCHANTS
-    -- =============================================
-    -- ZG Signets
-    [2604] = "Zandalar Signet of Mojo",
-    [2605] = "Zandalar Signet of Might",
-    [2606] = "Zandalar Signet of Serenity",
-    -- Naxx Enchants
-    [2715] = "Fortitude of the Scourge",
-    [2716] = "Power of the Scourge",
-    [2717] = "Resilience of the Scourge",
-    [2721] = "Might of the Scourge",
-    -- TBC Inscriptions
-    [2977] = "Inscription of Warding",
-    [2978] = "Greater Inscription of Faith",
-    [2979] = "Greater Inscription of Vengeance",
-    [2980] = "Greater Inscription of Warding",
-    [2981] = "Inscription of Vengeance",
-    [2982] = "Greater Inscription of Discipline",
-    [2983] = "Inscription of the Blade",
-    [2986] = "Greater Inscription of the Blade",
-    [2987] = "Inscription of the Knight",
-    [2990] = "Greater Inscription of the Knight",
-    [2991] = "Greater Inscription of the Oracle",
-    [2995] = "Inscription of the Oracle",
-    [2997] = "Inscription of Discipline",
-    [2998] = "Inscription of Faith",
-
-    -- =============================================
-    -- CLOAK ENCHANTS
-    -- =============================================
-    [247] = "Enchant Cloak - Lesser Agility",
-    [249] = "Enchant Cloak - Lesser Protection",
-    [256] = "Enchant Cloak - Minor Resistance",
-    [368] = "Enchant Cloak - Minor Agility",
-    [783] = "Enchant Cloak - Minor Agility",
-    [844] = "Enchant Cloak - Lesser Fire Resistance",
-    [848] = "Enchant Cloak - Defense",
-    [849] = "Enchant Cloak - Lesser Agility",
-    [884] = "Enchant Cloak - Fire Resistance",
-    [903] = "Enchant Cloak - Lesser Fire Resistance",
-    [910] = "Enchant Cloak - Superior Defense",
-    [1257] = "Enchant Cloak - Greater Defense",
-    [1441] = "Enchant Cloak - Greater Resistance",
-    [2463] = "Enchant Cloak - Fire Resistance",
-    [2619] = "Enchant Cloak - Greater Fire Resistance",
-    [2620] = "Enchant Cloak - Greater Nature Resistance",
-    [2621] = "Enchant Cloak - Greater Agility",
-    [2622] = "Enchant Cloak - Subtlety",
-    [2662] = "Enchant Cloak - Major Armor",
-    [2664] = "Enchant Cloak - Major Resistance",
-    [2938] = "Enchant Cloak - Spell Penetration",
-    [1354] = "Enchant Cloak - Stealth",
-    [1889] = "Enchant Cloak - Dodge",
-
-    -- =============================================
-    -- CHEST ENCHANTS
-    -- =============================================
-    [41] = "Enchant Chest - Minor Health",
-    [44] = "Enchant Chest - Minor Mana",
-    [63] = "Enchant Chest - Minor Stats",
-    [242] = "Enchant Chest - Lesser Health",
-    [246] = "Enchant Chest - Lesser Mana",
-    [254] = "Enchant Chest - Minor Absorption",
-    [843] = "Enchant Chest - Greater Health",
-    [847] = "Enchant Chest - Greater Mana",
-    [850] = "Enchant Chest - Health",
-    [857] = "Enchant Chest - Superior Health",
-    [866] = "Enchant Chest - Lesser Stats",
-    [908] = "Enchant Chest - Stats",
-    [913] = "Enchant Chest - Greater Stats",
-    [928] = "Enchant Chest - Stats",
-    [1891] = "Enchant Chest - Greater Stats",
-    [1892] = "Enchant Chest - Greater Stats",
-    [1893] = "Enchant Chest - Major Mana",
-    [1950] = "Enchant Chest - Major Health",
-    [2659] = "Enchant Chest - Exceptional Health",
-    [2660] = "Enchant Chest - Exceptional Mana",
-    [2661] = "Enchant Chest - Exceptional Stats",
-    [2933] = "Enchant Chest - Major Resilience",
-    [3150] = "Enchant Chest - Exceptional Stats",
-
-    -- =============================================
-    -- BRACER ENCHANTS
-    -- =============================================
-    [41] = "Enchant Bracer - Minor Health",
-    [66] = "Enchant Bracer - Minor Stamina",
-    [243] = "Enchant Bracer - Minor Strength",
-    [247] = "Enchant Bracer - Lesser Stamina",
-    [248] = "Enchant Bracer - Minor Deflection",
-    [255] = "Enchant Bracer - Lesser Strength",
-    [369] = "Enchant Bracer - Assault",
-    [723] = "Enchant Bracer - Minor Intellect",
-    [724] = "Enchant Bracer - Minor Intellect",
-    [823] = "Enchant Bracer - Stamina",
-    [851] = "Enchant Bracer - Spirit",
-    [852] = "Enchant Bracer - Strength",
-    [856] = "Enchant Bracer - Lesser Intellect",
-    [905] = "Enchant Bracer - Greater Stamina",
-    [906] = "Enchant Bracer - Greater Strength",
-    [907] = "Enchant Bracer - Greater Strength",
-    [908] = "Enchant Bracer - Greater Intellect",
-    [923] = "Enchant Bracer - Deflection",
-    [924] = "Enchant Bracer - Intellect",
-    [925] = "Enchant Bracer - Greater Spirit",
-    [927] = "Enchant Bracer - Greater Intellect",
-    [929] = "Enchant Bracer - Superior Stamina",
-    [931] = "Enchant Bracer - Superior Strength",
-    [1147] = "Enchant Bracer - Superior Stamina",
-    [1593] = "Enchant Bracer - Mana Regeneration",
-    [1600] = "Enchant Bracer - Healing Power",
-    [1883] = "Enchant Bracer - Superior Stamina",
-    [1884] = "Enchant Bracer - Superior Strength",
-    [1885] = "Enchant Bracer - Superior Spirit",
-    [1886] = "Enchant Bracer - Superior Intellect",
-    [2565] = "Enchant Bracer - Brawn",
-    [2617] = "Enchant Bracer - Superior Healing",
-    [2647] = "Enchant Bracer - Brawn",
-    [2648] = "Enchant Bracer - Fortitude",
-    [2649] = "Enchant Bracer - Spellpower",
-    [2650] = "Enchant Bracer - Major Defense",
-    [2679] = "Enchant Bracer - Stats",
-
-    -- =============================================
-    -- GLOVES ENCHANTS
-    -- =============================================
-    [684] = "Enchant Gloves - Superior Agility",
-    [845] = "Enchant Gloves - Agility",
-    [846] = "Enchant Gloves - Strength",
-    [865] = "Enchant Gloves - Skinning",
-    [904] = "Enchant Gloves - Greater Strength",
-    [909] = "Enchant Gloves - Greater Agility",
-    [856] = "Enchant Gloves - Mining",
-    [857] = "Enchant Gloves - Herbalism",
-    [863] = "Enchant Gloves - Advanced Mining",
-    [930] = "Enchant Gloves - Mining",
-    [931] = "Enchant Gloves - Herbalism",
-    [1594] = "Enchant Gloves - Assault",
-    [2322] = "Enchant Gloves - Major Strength",
-    [2564] = "Enchant Gloves - Frost Power",
-    [2613] = "Enchant Gloves - Threat",
-    [2614] = "Enchant Gloves - Fire Power",
-    [2615] = "Enchant Gloves - Shadow Power",
-    [2616] = "Enchant Gloves - Healing Power",
-    [2617] = "Enchant Gloves - Healing Power",
-    [2934] = "Enchant Gloves - Blasting",
-    [2935] = "Enchant Gloves - Major Spellpower",
-    [2936] = "Enchant Gloves - Spell Strike",
-    [2937] = "Enchant Gloves - Major Healing",
-
-    -- =============================================
-    -- LEG ENCHANTS
-    -- =============================================
-    -- TBC Leg Armor
-    [3010] = "Cobrahide Leg Armor",
-    [3011] = "Nethercobra Leg Armor",
-    [3012] = "Clefthide Leg Armor",
-    [3013] = "Nethercleft Leg Armor",
-    -- TBC Spellthreads
-    [2746] = "Mystic Spellthread",
-    [2747] = "Runic Spellthread",
-    [2748] = "Silver Spellthread",
-    [2749] = "Golden Spellthread",
-
-    -- =============================================
-    -- BOOTS ENCHANTS
-    -- =============================================
-    [247] = "Enchant Boots - Minor Stamina",
-    [250] = "Enchant Boots - Minor Speed",
-    [255] = "Enchant Boots - Lesser Stamina",
-    [724] = "Enchant Boots - Lesser Agility",
-    [849] = "Enchant Boots - Lesser Agility",
-    [851] = "Enchant Boots - Stamina",
-    [852] = "Enchant Boots - Agility",
-    [904] = "Enchant Boots - Greater Agility",
-    [911] = "Enchant Boots - Minor Speed",
-    [929] = "Enchant Boots - Spirit",
-    [1597] = "Enchant Boots - Greater Stamina",
-    [1887] = "Enchant Boots - Run Speed",
-    [2649] = "Enchant Boots - Dexterity",
-    [2656] = "Enchant Boots - Vitality",
-    [2657] = "Enchant Boots - Fortitude",
-    [2658] = "Enchant Boots - Surefooted",
-    [2939] = "Enchant Boots - Cat's Swiftness",
-    [2940] = "Enchant Boots - Boar's Speed",
-
-    -- =============================================
-    -- RING ENCHANTS (Enchanters only)
-    -- =============================================
-    [2928] = "Enchant Ring - Spellpower",
-    [2929] = "Enchant Ring - Striking",
-    [2930] = "Enchant Ring - Healing Power",
-    [2931] = "Enchant Ring - Stats",
-
-    -- =============================================
-    -- SHIELD ENCHANTS
-    -- =============================================
-    [848] = "Enchant Shield - Lesser Block",
-    [864] = "Enchant Shield - Lesser Stamina",
-    [926] = "Enchant Shield - Frost Resistance",
-    [929] = "Enchant Shield - Greater Spirit",
-    [1071] = "Enchant Shield - Greater Stamina",
-    [1888] = "Enchant Shield - Superior Stamina",
-    [1890] = "Enchant Shield - Vitality",
-    [2653] = "Enchant Shield - Parry",
-    [2654] = "Enchant Shield - Resilience",
-    [2655] = "Enchant Shield - Intellect",
-    [3229] = "Enchant Shield - Defense",
-
-    -- =============================================
-    -- RANGED WEAPON ENCHANTS (Scopes)
-    -- =============================================
-    [30] = "Crude Scope",
-    [32] = "Standard Scope",
-    [33] = "Accurate Scope",
-    [663] = "Deadly Scope",
-    [664] = "Sniper Scope",
-    [2523] = "Stabilized Eternium Scope",
-    [2724] = "Khorium Scope",
-}
+-- Equipment slots: WoW slot IDs to iterate
+local SLOT_IDS = { 1, 2, 3, 15, 5, 9, 10, 6, 7, 8, 11, 12, 13, 14, 16, 17, 18 }
 
 -- Export dialog frame
 local exportFrame = nil
@@ -390,117 +37,21 @@ function GearExport:ParseItemLink(itemLink)
     }
 end
 
--- Get enchant name from item link by scanning tooltip
--- Enchants appear as green text in the tooltip
-function GearExport:GetEnchantFromTooltip(itemLink)
-    if not itemLink then return nil end
-
-    scanTooltip:ClearLines()
-    scanTooltip:SetHyperlink(itemLink)
-
-    -- Scan tooltip lines for enchant (green text)
-    for i = 2, scanTooltip:NumLines() do
-        local line = _G["HooligansGearExportScanTooltipTextLeft" .. i]
-        if line then
-            local text = line:GetText()
-            local r, g, b = line:GetTextColor()
-
-            -- Green text (enchants are green: r≈0, g≈1, b≈0)
-            if text and g > 0.9 and r < 0.2 and b < 0.2 then
-                -- Filter out socket bonuses and other green text
-                if not text:match("^Socket Bonus:") and
-                   not text:match("^Equip:") and
-                   not text:match("^Use:") and
-                   not text:match("^Requires") and
-                   not text:match("^Classes:") and
-                   not text:match("^Durability") and
-                   not text:match("^<") then
-                    return text  -- This is the enchant name
-                end
-            end
-        end
-    end
-
-    return nil
-end
-
--- Get enchant info - uses lookup table first, falls back to tooltip scanning
-function GearExport:GetEnchantInfo(enchantID, itemLink)
-    if not enchantID or enchantID == 0 then return nil end
-
-    -- First try lookup table for full enchant name
-    local enchantName = ENCHANT_NAMES[enchantID]
-
-    -- DEBUG: Print missing enchant IDs so we can add them to the table
-    if not enchantName then
-        local tooltipName = self:GetEnchantFromTooltip(itemLink)
-        print("|cffff9900[HooligansLoot]|r Missing enchant ID: |cff00ff00" .. enchantID .. "|r = |cffffffff" .. (tooltipName or "unknown") .. "|r")
-        enchantName = tooltipName
-    end
-
-    if enchantName then
-        return {
-            name = enchantName,
-            id = enchantID,
-        }
-    end
-
-    -- Fallback if tooltip scanning fails
-    return {
-        name = "Enchant",
-        id = enchantID,
-    }
-end
-
--- Get gem info from gem item ID
-function GearExport:GetGemInfo(gemID)
-    if not gemID or gemID == 0 then return nil end
-
-    local name = GetItemInfo(gemID)
-
-    return {
-        id = gemID,
-        name = name or "Gem",
-    }
-end
-
--- Get all equipped gear as items array with full info (Sixty Upgrades format)
+-- Get all equipped gear as minimal items array (Gearcheck format)
 function GearExport:GetEquippedGear()
     local items = {}
 
-    for _, slotInfo in ipairs(SLOT_INFO) do
-        local itemLink = GetInventoryItemLink("player", slotInfo.wowSlot)
+    for _, slotID in ipairs(SLOT_IDS) do
+        local itemLink = GetInventoryItemLink("player", slotID)
 
         if itemLink then
             local parsed = self:ParseItemLink(itemLink)
             if parsed and parsed.itemID > 0 then
-                local itemName = GetItemInfo(parsed.itemID) or Utils.GetItemName(itemLink) or "Unknown"
-
                 local item = {
-                    name = itemName,
                     id = parsed.itemID,
-                    slot = slotInfo.name,
-                    gems = {},
+                    enchant = parsed.enchantID,
+                    gems = { parsed.gem1, parsed.gem2, parsed.gem3, parsed.gem4 },
                 }
-
-                -- Add enchant if present (pass itemLink for tooltip scanning)
-                local enchant = self:GetEnchantInfo(parsed.enchantID, itemLink)
-                if enchant then
-                    item.enchant = enchant
-                end
-
-                -- Add gems if present
-                for _, gemID in ipairs({parsed.gem1, parsed.gem2, parsed.gem3, parsed.gem4}) do
-                    local gem = self:GetGemInfo(gemID)
-                    if gem then
-                        table.insert(item.gems, gem)
-                    end
-                end
-
-                -- Remove empty gems array for cleaner output
-                if #item.gems == 0 then
-                    item.gems = nil
-                end
 
                 table.insert(items, item)
             end
@@ -510,24 +61,11 @@ function GearExport:GetEquippedGear()
     return items
 end
 
--- Export gear in Sixty Upgrades JSON format
+-- Export gear in Gearcheck JSON format (minimal)
 function GearExport:ExportToJSON()
-    local playerName = UnitName("player")
-    local _, classFile = UnitClass("player")
-    local level = UnitLevel("player")
-    local race = UnitRace("player")
-    local faction = UnitFactionGroup("player")
-
     local items = self:GetEquippedGear()
 
     local exportData = {
-        character = {
-            name = playerName,
-            level = level,
-            gameClass = classFile,  -- Already uppercase (e.g., "WARRIOR")
-            race = RACE_MAP[race] or race:upper():gsub(" ", "_"),
-            faction = faction:upper(),
-        },
         items = items,
     }
 
@@ -568,10 +106,10 @@ function GearExport:CreateExportFrame()
     closeX:SetPoint("TOPRIGHT", -2, -2)
     closeX:SetScript("OnClick", function() frame:Hide() end)
 
-    -- Player info
-    frame.playerInfo = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    frame.playerInfo:SetPoint("TOP", frame.title, "BOTTOM", 0, -5)
-    frame.playerInfo:SetTextColor(0.7, 0.7, 0.7)
+    -- Item count info
+    frame.itemInfo = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.itemInfo:SetPoint("TOP", frame.title, "BOTTOM", 0, -5)
+    frame.itemInfo:SetTextColor(0.7, 0.7, 0.7)
 
     -- Scroll frame
     local scrollFrame = CreateFrame("ScrollFrame", "HooligansLootGearExportScroll", frame, "UIPanelScrollFrameTemplate")
@@ -593,7 +131,7 @@ function GearExport:CreateExportFrame()
     -- Instructions
     local instructions = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     instructions:SetPoint("BOTTOMLEFT", 15, 15)
-    instructions:SetText("Press Ctrl+C to copy")
+    instructions:SetText("Press Ctrl+C to copy | Paste on voting website")
     instructions:SetTextColor(0.7, 0.7, 0.7)
 
     tinsert(UISpecialFrames, "HooligansLootGearExportFrame")
@@ -611,10 +149,7 @@ function GearExport:RefreshExport()
     if exportString then
         exportFrame.editBox:SetText(exportString)
         exportFrame.editBox:HighlightText()
-
-        local playerName = UnitName("player")
-        local _, className = UnitClass("player")
-        exportFrame.playerInfo:SetText(playerName .. " (" .. (className or "?") .. ") - " .. itemCount .. " items")
+        exportFrame.itemInfo:SetText(itemCount .. " equipped items")
     else
         exportFrame.editBox:SetText("Error: Unknown error")
     end
